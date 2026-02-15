@@ -1,5 +1,5 @@
 // Service Worker para Parte Diario de Novedades - PWA
-const CACHE_NAME = 'parte-policia-v1.0.0';
+const CACHE_NAME = 'parte-policia-v1.1.0';
 const urlsToCache = [
   './',
   './index.html',

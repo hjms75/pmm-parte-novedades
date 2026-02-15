@@ -2478,6 +2478,85 @@
         let currentRecognition = null;
         let micPermissionGranted = false;
         
+        // Función para convertir números en palabras a dígitos
+        function convertirNumerosADigitos(texto) {
+            // Diccionario de números en español
+            const numeros = {
+                // Unidades
+                'cero': '0', 'uno': '1', 'una': '1', 'dos': '2', 'tres': '3', 'cuatro': '4',
+                'cinco': '5', 'seis': '6', 'siete': '7', 'ocho': '8', 'nueve': '9',
+                
+                // Decenas
+                'diez': '10', 'once': '11', 'doce': '12', 'trece': '13', 'catorce': '14',
+                'quince': '15', 'dieciséis': '16', 'dieciseis': '16', 'diecisiete': '17',
+                'dieciocho': '18', 'diecinueve': '19', 'veinte': '20',
+                'veintiuno': '21', 'veintiuna': '21', 'veintidós': '22', 'veintidos': '22',
+                'veintitrés': '23', 'veintitres': '23', 'veinticuatro': '24',
+                'veinticinco': '25', 'veintiséis': '26', 'veintiseis': '26',
+                'veintisiete': '27', 'veintiocho': '28', 'veintinueve': '29',
+                'treinta': '30', 'cuarenta': '40', 'cincuenta': '50',
+                'sesenta': '60', 'setenta': '70', 'ochenta': '80', 'noventa': '90',
+                
+                // Centenas
+                'cien': '100', 'ciento': '100', 'doscientos': '200', 'doscientas': '200',
+                'trescientos': '300', 'trescientas': '300', 'cuatrocientos': '400',
+                'cuatrocientas': '400', 'quinientos': '500', 'quinientas': '500',
+                'seiscientos': '600', 'seiscientas': '600', 'setecientos': '700',
+                'setecientas': '700', 'ochocientos': '800', 'ochocientas': '800',
+                'novecientos': '900', 'novecientas': '900',
+                
+                // Miles
+                'mil': '1000', 'miles': '1000'
+            };
+            
+            // Convertir a minúsculas para búsqueda
+            let resultado = texto.toLowerCase();
+            
+            // Convertir números compuestos como "treinta y cinco" a "35"
+            // Primero las decenas con unidades
+            const patronDecenasYUnidades = /(treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)\s+y\s+(uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve)/g;
+            resultado = resultado.replace(patronDecenasYUnidades, (match, decena, unidad) => {
+                const valorDecena = parseInt(numeros[decena] || '0');
+                const valorUnidad = parseInt(numeros[unidad] || '0');
+                return (valorDecena + valorUnidad).toString();
+            });
+            
+            // Convertir "ciento X" a número
+            const patronCientos = /ciento\s+(uno|una|dos|tres|cuatro|cinco|seis|siete|ocho|nueve|diez|once|doce|trece|catorce|quince|dieciséis|dieciseis|diecisiete|dieciocho|diecinueve|veinte|veintiuno|veintiuna|veintidós|veintidos|veintitrés|veintitres|veinticuatro|veinticinco|veintiséis|veintiseis|veintisiete|veintiocho|veintinueve|treinta|cuarenta|cincuenta|sesenta|setenta|ochenta|noventa)/g;
+            resultado = resultado.replace(patronCientos, (match, resto) => {
+                const valorResto = parseInt(numeros[resto] || resto.replace(/\D/g, '') || '0');
+                return (100 + valorResto).toString();
+            });
+            
+            // Convertir números individuales
+            Object.keys(numeros).forEach(palabra => {
+                // Usar \b para límites de palabra para no afectar palabras que contengan estos números
+                const regex = new RegExp('\\b' + palabra + '\\b', 'g');
+                resultado = resultado.replace(regex, numeros[palabra]);
+            });
+            
+            // Convertir "mil X" correctamente
+            resultado = resultado.replace(/(\d+)\s+mil\s+(\d+)/g, (match, miles, resto) => {
+                return (parseInt(miles) * 1000 + parseInt(resto)).toString();
+            });
+            
+            resultado = resultado.replace(/\bmil\s+(\d+)/g, (match, resto) => {
+                return (1000 + parseInt(resto)).toString();
+            });
+            
+            // Restaurar mayúsculas al inicio de oraciones
+            resultado = resultado.replace(/(^|[.!?]\s+)([a-z])/g, (match, separator, letter) => {
+                return separator + letter.toUpperCase();
+            });
+            
+            // Mantener mayúsculas en todo si el texto original estaba en mayúsculas
+            if (texto === texto.toUpperCase()) {
+                resultado = resultado.toUpperCase();
+            }
+            
+            return resultado;
+        }
+        
         // Función para solicitar permisos de micrófono de forma anticipada
         async function requestMicrophonePermission() {
             try {
@@ -2636,9 +2715,11 @@
                 let interimTranscript = '';
                 
                 for (let i = event.resultIndex; i < event.results.length; i++) {
-                    const transcript = event.results[i][0].transcript;
+                    let transcript = event.results[i][0].transcript;
                     
                     if (event.results[i].isFinal) {
+                        // Convertir números en palabras a dígitos
+                        transcript = convertirNumerosADigitos(transcript);
                         finalTranscript += (finalTranscript ? ' ' : '') + transcript;
                         
                         // Vibración ligera al finalizar cada frase
@@ -2646,7 +2727,8 @@
                             navigator.vibrate(20);
                         }
                     } else {
-                        interimTranscript += transcript;
+                        // También convertir en resultados intermedios para preview
+                        interimTranscript += convertirNumerosADigitos(transcript);
                     }
                 }
                 
@@ -2665,7 +2747,7 @@
                 button.style.cursor = 'pointer';
                 currentRecognition = null;
                 
-                // Actualizar con el texto final
+                // Actualizar con el texto final (ya convertido)
                 textarea.value = finalTranscript;
                 const inputEvent = new Event('input', { bubbles: true });
                 textarea.dispatchEvent(inputEvent);
